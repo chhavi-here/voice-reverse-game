@@ -1097,15 +1097,9 @@
           'audio/ogg;codecs=opus'
         ];
         const supportedMime = mimeCandidates.find((m) => window.MediaRecorder && MediaRecorder.isTypeSupported(m));
-        try {
-          mediaRecorder = supportedMime
-            ? new MediaRecorder(mediaStream, { mimeType: supportedMime, audioBitsPerSecond: 6000 })
-            : new MediaRecorder(mediaStream, { audioBitsPerSecond: 6000 });
-        } catch (_) {
-          mediaRecorder = supportedMime
-            ? new MediaRecorder(mediaStream, { mimeType: supportedMime })
-            : new MediaRecorder(mediaStream);
-        }
+        mediaRecorder = supportedMime
+          ? new MediaRecorder(mediaStream, { mimeType: supportedMime })
+          : new MediaRecorder(mediaStream);
 
         recordedChunks = [];
         mediaRecorder.ondataavailable = (e) => {
