@@ -1,0 +1,1472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Voice Reverser — Two-User Studio</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); opacity: 0.7; }
+      70% { transform: scale(1.18); opacity: 0; }
+      100% { transform: scale(1.18); opacity: 0; }
+    }
+    .recording-ring {
+      animation: pulse-ring 1.4s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center justify-center p-4 sm:p-6">
+
+  <main class="w-full max-w-2xl bg-slate-900/90 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden backdrop-blur">
+    <!-- Header -->
+    <header class="px-5 py-4 sm:px-6 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 bg-slate-900">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-lg sm:text-xl font-bold tracking-tight text-white">Voice Reverser</h1>
+          <p id="headerSubtitle" class="text-xs text-slate-400">User 1 records Voice 1 &amp; shares a reversed-only link with User 2</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <div id="dbStatusBadge" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-800 text-slate-300 border border-slate-700">
+          <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+          <span id="dbStatusText">Database Ready</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Shared Session Bar (Shown when opened via ?id= or #v1= link) -->
+    <div id="sharedSessionBar" class="hidden px-5 py-2.5 sm:px-6 bg-violet-950/40 border-b border-violet-500/30 flex flex-wrap items-center justify-between gap-2">
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-violet-400"></span>
+        <span class="text-xs font-semibold text-violet-200">User 2 View • Shared Voice 1 (Reversed Only)</span>
+      </div>
+      <button id="createOwnBtn" type="button" class="text-xs font-medium text-indigo-300 hover:text-indigo-200 underline underline-offset-2">
+        Create your own (User 1)
+      </button>
+    </div>
+
+    <!-- Role Switcher Bar -->
+    <div id="roleSwitcherBar" class="px-5 py-2.5 sm:px-6 bg-slate-950/80 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2">
+      <div class="flex items-center gap-2">
+        <span class="text-xs font-medium text-slate-400">Active Role:</span>
+        <div class="inline-flex rounded-lg bg-slate-900 p-0.5 border border-slate-800">
+          <button
+            id="roleUser1Btn"
+            type="button"
+            class="px-3 py-1 rounded-md text-xs font-semibold transition-colors bg-indigo-600 text-white"
+          >
+            User 1 (Creator)
+          </button>
+          <button
+            id="roleUser2Btn"
+            type="button"
+            class="px-3 py-1 rounded-md text-xs font-semibold transition-colors text-slate-400 hover:text-slate-200"
+          >
+            User 2 (Listener / Recorder)
+          </button>
+        </div>
+      </div>
+      <span id="roleHint" class="text-[11px] text-slate-400">Records Voice 1 &amp; generates share link</span>
+    </div>
+
+    <!-- 2-Slot Tabs -->
+    <nav class="grid grid-cols-2 border-b border-slate-800 bg-slate-950/50" role="tablist" aria-label="Voice Slots">
+      <button
+        id="tabSlot1"
+        type="button"
+        role="tab"
+        aria-selected="true"
+        class="tab-btn relative py-3.5 px-4 text-sm font-semibold flex items-center justify-center gap-2 transition-colors border-b-2 border-indigo-500 text-white bg-slate-900/70"
+      >
+        <span id="tabLabel1">Voice 1</span>
+        <span id="tabBadge1" class="px-2 py-0.5 text-[11px] rounded-full bg-slate-800 text-slate-400 font-medium">Empty</span>
+      </button>
+      <button
+        id="tabSlot2"
+        type="button"
+        role="tab"
+        aria-selected="false"
+        class="tab-btn relative py-3.5 px-4 text-sm font-semibold flex items-center justify-center gap-2 transition-colors border-b-2 border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-900/40"
+      >
+        <span id="tabLabel2">Voice 2</span>
+        <span id="tabBadge2" class="px-2 py-0.5 text-[11px] rounded-full bg-slate-800 text-slate-400 font-medium">Empty</span>
+      </button>
+    </nav>
+
+    <!-- Active Slot Workspace -->
+    <section class="p-5 sm:p-6 space-y-5">
+      <!-- Slot Info & Clear -->
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div class="flex items-center gap-2">
+            <h2 id="activeSlotTitle" class="text-base font-semibold text-white">Voice Slot 1</h2>
+            <span id="reverseOnlyBadge" class="hidden px-2 py-0.5 rounded-full text-[11px] font-semibold bg-violet-500/20 text-violet-300 border border-violet-500/30">
+              Reversed Only
+            </span>
+          </div>
+          <p id="activeSlotMeta" class="text-xs text-slate-400 mt-0.5">No recording saved in this slot yet.</p>
+        </div>
+        <button
+          id="clearSlotBtn"
+          type="button"
+          disabled
+          class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-700 text-slate-300 hover:bg-rose-500/10 hover:text-rose-300 hover:border-rose-500/40 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+          <span>Clear Slot</span>
+        </button>
+      </div>
+
+      <!-- Waveform Visualizer & Play Bar -->
+      <div class="relative rounded-xl bg-slate-950 border border-slate-800 p-3 sm:p-4 space-y-3">
+        <div class="flex items-center justify-between text-xs text-slate-400">
+          <span id="visualizerLabel" class="font-medium text-slate-300">Waveform Preview</span>
+          <span id="timeDisplay" class="font-mono text-slate-300">00:00.0</span>
+        </div>
+        <div class="relative h-28 w-full overflow-hidden rounded-lg bg-slate-900/70 flex items-center justify-center">
+          <canvas id="waveformCanvas" class="w-full h-full block cursor-pointer"></canvas>
+          <div id="emptyWaveformOverlay" class="absolute inset-0 flex flex-col items-center justify-center text-slate-500 pointer-events-none px-4 text-center">
+            <svg class="w-7 h-7 mb-1.5 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+            </svg>
+            <span id="emptyWaveformText" class="text-xs">Press <strong class="text-slate-300">Start Recording</strong> below to capture your voice</span>
+          </div>
+        </div>
+        <!-- Interactive Play Bar / Scrubber -->
+        <div class="flex items-center gap-3">
+          <span id="currentTimeLabel" class="font-mono text-[11px] text-slate-400 w-12 shrink-0">00:00.0</span>
+          <input
+            id="seekBar"
+            type="range"
+            min="0"
+            max="1000"
+            value="0"
+            disabled
+            aria-label="Audio play bar"
+            class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed"
+          />
+          <span id="totalTimeLabel" class="font-mono text-[11px] text-slate-400 w-12 text-right shrink-0">00:00.0</span>
+        </div>
+      </div>
+
+      <!-- Alert / Status Message -->
+      <div id="statusBanner" class="hidden rounded-xl px-4 py-3 text-xs sm:text-sm border"></div>
+
+      <!-- Record Button (hidden when User 2 is viewing Voice 1) -->
+      <div id="recordSection" class="flex flex-col items-center pt-1">
+        <div class="relative">
+          <span id="recordPulse" class="hidden absolute inset-0 rounded-full bg-rose-500 recording-ring"></span>
+          <button
+            id="recordBtn"
+            type="button"
+            class="relative z-10 inline-flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-full font-semibold text-sm text-white bg-rose-600 hover:bg-rose-500 active:scale-[0.98] shadow-lg shadow-rose-950/50 transition-all"
+          >
+            <span id="recordIcon" class="w-3.5 h-3.5 rounded-full bg-white"></span>
+            <span id="recordBtnText">Start Recording</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Playback Controls: Original & Reverse -->
+      <div id="playbackGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+        <button
+          id="playOriginalBtn"
+          type="button"
+          disabled
+          class="flex items-center justify-center gap-2.5 px-5 py-3.5 rounded-xl font-semibold text-sm bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-950/40 disabled:bg-slate-800 disabled:text-slate-500 disabled:shadow-none disabled:cursor-not-allowed transition-all"
+        >
+          <svg class="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M8 5v14l11-7z" />
+          </svg>
+          <span id="playOriginalText">Play Original</span>
+        </button>
+
+        <button
+          id="playReverseBtn"
+          type="button"
+          disabled
+          class="flex items-center justify-center gap-2.5 px-5 py-3.5 rounded-xl font-semibold text-sm bg-violet-600 hover:bg-violet-500 text-white shadow-md shadow-violet-950/40 disabled:bg-slate-800 disabled:text-slate-500 disabled:shadow-none disabled:cursor-not-allowed transition-all"
+        >
+          <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0019 16V8a1 1 0 00-1.6-.8l-5.333 4zM4.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0011 16V8a1 1 0 00-1.6-.8l-5.334 4z" />
+          </svg>
+          <span id="playReverseText">Play Reversed</span>
+        </button>
+      </div>
+
+      <!-- Pause / Resume & Stop Controls -->
+      <div id="stopPlaybackRow" class="hidden flex items-center justify-center gap-3">
+        <button
+          id="pauseResumeBtn"
+          type="button"
+          class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold bg-amber-600 hover:bg-amber-500 text-white shadow-sm transition-colors"
+        >
+          <svg id="pauseIcon" class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M6 5h4v14H6zm8 0h4v14h-4z" />
+          </svg>
+          <svg id="resumeIcon" class="hidden w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M8 5v14l11-7z" />
+          </svg>
+          <span id="pauseResumeText">Pause</span>
+        </button>
+        <button
+          id="stopPlaybackBtn"
+          type="button"
+          class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors"
+        >
+          <span class="w-2.5 h-2.5 rounded-sm bg-slate-200"></span>
+          <span>Stop Playback</span>
+        </button>
+      </div>
+
+      <!-- Shareable Link Card (Visible for User 1 once Voice 1 is recorded) -->
+      <div id="shareSection" class="hidden rounded-xl bg-indigo-950/30 border border-indigo-500/30 p-4 space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 class="text-sm font-semibold text-indigo-200">Shareable Link for User 2</h3>
+            <p class="text-xs text-slate-400">Anyone opening this link enters User 2 mode and can hear Voice 1 <strong class="text-slate-200">only in reverse</strong>.</p>
+          </div>
+          <span id="shareSizeBadge" class="px-2 py-0.5 rounded-full text-[11px] font-medium bg-indigo-500/20 text-indigo-300">Ready</span>
+        </div>
+        <div class="flex flex-col sm:flex-row gap-2">
+          <input
+            id="shareLinkInput"
+            type="text"
+            readonly
+            aria-label="Shareable link for User 2"
+            class="flex-1 px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-xs font-mono text-slate-300 focus:outline-none focus:border-indigo-500"
+          />
+          <button
+            id="copyShareBtn"
+            type="button"
+            class="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition-colors shrink-0"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+            <span id="copyShareText">Copy Link</span>
+          </button>
+          <button
+            id="openAsUser2Btn"
+            type="button"
+            class="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-violet-600 hover:bg-violet-500 text-white transition-colors shrink-0"
+          >
+            <span>Test as User 2</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Database Summary Footer -->
+    <footer class="px-5 py-3.5 sm:px-6 bg-slate-950/70 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+      <span>Stored in Browser Database (Max 2 Voices)</span>
+      <div class="flex items-center gap-3">
+        <span id="footerSlot1">Voice 1: Empty</span>
+        <span class="text-slate-700">•</span>
+        <span id="footerSlot2">Voice 2: Empty</span>
+      </div>
+    </footer>
+  </main>
+
+  <script>
+    (() => {
+      // --- State ---
+      const DB_NAME = 'VoiceReverserDB';
+      const DB_VERSION = 2;
+      const STORE_NAME = 'voices';
+
+      let db = null;
+      let dbMode = 'IndexedDB';
+      let audioCtx = null;
+
+      let currentRole = 'user1'; // 'user1' | 'user2'
+      let lockedFromShareLink = false;
+      let activeSlot = 'slot1';
+      const slots = {
+        slot1: null, // { originalBuffer, reversedBuffer, duration, sampleRate, recordedAt, rawBlobBase64, rawMimeType }
+        slot2: null
+      };
+
+      let isRecording = false;
+      let mediaStream = null;
+      let mediaRecorder = null;
+      let recordedChunks = [];
+      let analyser = null;
+      let recordStartTime = 0;
+      let recordAnimId = null;
+
+      let activeSource = null;
+      let playbackState = 'idle'; // 'idle' | 'playing' | 'paused'
+      let playbackMode = null; // 'original' | 'reverse' | null
+      let playbackStartTime = 0;
+      let playbackOffset = 0;
+      let playbackDuration = 0;
+      let playbackAnimId = null;
+      let isSeeking = false;
+
+      // --- DOM Elements ---
+      const roleSwitcherBar = document.getElementById('roleSwitcherBar');
+      const sharedSessionBar = document.getElementById('sharedSessionBar');
+      const createOwnBtn = document.getElementById('createOwnBtn');
+      const roleUser1Btn = document.getElementById('roleUser1Btn');
+      const roleUser2Btn = document.getElementById('roleUser2Btn');
+      const roleHint = document.getElementById('roleHint');
+      const headerSubtitle = document.getElementById('headerSubtitle');
+
+      const tabSlot1 = document.getElementById('tabSlot1');
+      const tabSlot2 = document.getElementById('tabSlot2');
+      const tabLabel1 = document.getElementById('tabLabel1');
+      const tabLabel2 = document.getElementById('tabLabel2');
+      const tabBadge1 = document.getElementById('tabBadge1');
+      const tabBadge2 = document.getElementById('tabBadge2');
+
+      const activeSlotTitle = document.getElementById('activeSlotTitle');
+      const reverseOnlyBadge = document.getElementById('reverseOnlyBadge');
+      const activeSlotMeta = document.getElementById('activeSlotMeta');
+      const clearSlotBtn = document.getElementById('clearSlotBtn');
+
+      const waveformCanvas = document.getElementById('waveformCanvas');
+      const emptyWaveformOverlay = document.getElementById('emptyWaveformOverlay');
+      const emptyWaveformText = document.getElementById('emptyWaveformText');
+      const visualizerLabel = document.getElementById('visualizerLabel');
+      const timeDisplay = document.getElementById('timeDisplay');
+      const seekBar = document.getElementById('seekBar');
+      const currentTimeLabel = document.getElementById('currentTimeLabel');
+      const totalTimeLabel = document.getElementById('totalTimeLabel');
+
+      const statusBanner = document.getElementById('statusBanner');
+      const dbStatusText = document.getElementById('dbStatusText');
+
+      const recordSection = document.getElementById('recordSection');
+      const recordBtn = document.getElementById('recordBtn');
+      const recordPulse = document.getElementById('recordPulse');
+      const recordIcon = document.getElementById('recordIcon');
+      const recordBtnText = document.getElementById('recordBtnText');
+
+      const playbackGrid = document.getElementById('playbackGrid');
+      const playOriginalBtn = document.getElementById('playOriginalBtn');
+      const playOriginalText = document.getElementById('playOriginalText');
+      const playReverseBtn = document.getElementById('playReverseBtn');
+      const playReverseText = document.getElementById('playReverseText');
+      const stopPlaybackRow = document.getElementById('stopPlaybackRow');
+      const pauseResumeBtn = document.getElementById('pauseResumeBtn');
+      const pauseIcon = document.getElementById('pauseIcon');
+      const resumeIcon = document.getElementById('resumeIcon');
+      const pauseResumeText = document.getElementById('pauseResumeText');
+      const stopPlaybackBtn = document.getElementById('stopPlaybackBtn');
+
+      const shareSection = document.getElementById('shareSection');
+      const shareSizeBadge = document.getElementById('shareSizeBadge');
+      const shareLinkInput = document.getElementById('shareLinkInput');
+      const copyShareBtn = document.getElementById('copyShareBtn');
+      const copyShareText = document.getElementById('copyShareText');
+      const openAsUser2Btn = document.getElementById('openAsUser2Btn');
+
+      const footerSlot1 = document.getElementById('footerSlot1');
+      const footerSlot2 = document.getElementById('footerSlot2');
+
+      // --- Helpers ---
+      function getAudioContext() {
+        if (!audioCtx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          audioCtx = new AudioCtx();
+        }
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        return audioCtx;
+      }
+
+      function formatDuration(sec) {
+        if (!Number.isFinite(sec) || sec < 0) sec = 0;
+        const mins = Math.floor(sec / 60);
+        const secs = Math.floor(sec % 60);
+        const tenths = Math.floor((sec % 1) * 10);
+        return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}.${tenths}`;
+      }
+
+      function showBanner(message, type = 'info') {
+        statusBanner.textContent = message;
+        statusBanner.classList.remove(
+          'hidden',
+          'bg-rose-950/60', 'border-rose-500/40', 'text-rose-200',
+          'bg-emerald-950/60', 'border-emerald-500/40', 'text-emerald-200',
+          'bg-slate-800/80', 'border-slate-700', 'text-slate-200'
+        );
+        if (type === 'error') {
+          statusBanner.classList.add('bg-rose-950/60', 'border-rose-500/40', 'text-rose-200');
+        } else if (type === 'success') {
+          statusBanner.classList.add('bg-emerald-950/60', 'border-emerald-500/40', 'text-emerald-200');
+        } else {
+          statusBanner.classList.add('bg-slate-800/80', 'border-slate-700', 'text-slate-200');
+        }
+      }
+
+      function hideBanner() {
+        statusBanner.classList.add('hidden');
+      }
+
+      function uint8ToBase64Url(bytes) {
+        let binary = '';
+        const chunkSize = 0x8000;
+        for (let i = 0; i < bytes.length; i += chunkSize) {
+          binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+        }
+        return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      }
+
+      function base64UrlToUint8(b64url) {
+        const padLen = (4 - (b64url.length % 4)) % 4;
+        const b64 = b64url.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat(padLen);
+        const binary = atob(b64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        return bytes;
+      }
+
+      function encodeWavFromBuffer(audioBuffer) {
+        // Fallback compact mono 16-bit PCM WAV encoder if rawBlobBase64 is absent
+        const targetRate = Math.min(16000, audioBuffer.sampleRate);
+        const src = audioBuffer.getChannelData(0);
+        const ratio = audioBuffer.sampleRate / targetRate;
+        const outLen = Math.floor(src.length / ratio);
+        const buffer = new ArrayBuffer(44 + outLen * 2);
+        const view = new DataView(buffer);
+
+        const writeStr = (offset, str) => {
+          for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+        };
+        writeStr(0, 'RIFF');
+        view.setUint32(4, 36 + outLen * 2, true);
+        writeStr(8, 'WAVE');
+        writeStr(12, 'fmt ');
+        view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true);
+        view.setUint16(22, 1, true);
+        view.setUint32(24, targetRate, true);
+        view.setUint32(28, targetRate * 2, true);
+        view.setUint16(32, 2, true);
+        view.setUint16(34, 16, true);
+        writeStr(36, 'data');
+        view.setUint32(40, outLen * 2, true);
+
+        let offset = 44;
+        for (let i = 0; i < outLen; i++) {
+          const sample = Math.max(-1, Math.min(1, src[Math.floor(i * ratio)]));
+          view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+          offset += 2;
+        }
+        return new Uint8Array(buffer);
+      }
+
+      function getBaseAppUrl() {
+        const proto = window.location.protocol;
+        if (proto === 'http:' || proto === 'https:') {
+          return window.location.origin + window.location.pathname;
+        }
+        if (proto === 'file:') {
+          return window.location.href.split('#')[0].split('?')[0];
+        }
+        return '';
+      }
+
+      function buildShareableLink(slotEntry) {
+        if (!slotEntry) return '';
+        const base = getBaseAppUrl();
+        if (slotEntry.sharedId) {
+          return `${base}?id=${encodeURIComponent(slotEntry.sharedId)}`;
+        }
+        let mime = slotEntry.rawMimeType || 'audio/wav';
+        let b64url = slotEntry.rawBlobBase64 || '';
+        if (!b64url && slotEntry.originalBuffer) {
+          const wavBytes = encodeWavFromBuffer(slotEntry.originalBuffer);
+          mime = 'audio/wav';
+          b64url = uint8ToBase64Url(wavBytes);
+        }
+        return `${base}#v1=${encodeURIComponent(mime)}~${b64url}`;
+      }
+
+      async function uploadToNetlifyBlobs(blob, mimeType) {
+        if (window.location.protocol !== 'http:' && window.location.protocol !== 'https:') {
+          return null;
+        }
+        try {
+          const res = await fetch('/api/voice', {
+            method: 'POST',
+            headers: { 'Content-Type': mimeType || 'audio/webm' },
+            body: blob
+          });
+          if (!res.ok) return null;
+          const data = await res.json();
+          return data && data.id ? data.id : null;
+        } catch (_) {
+          return null;
+        }
+      }
+
+      function createReversedBuffer(ctx, originalBuffer) {
+        const { numberOfChannels, length, sampleRate } = originalBuffer;
+        const reversed = ctx.createBuffer(numberOfChannels, length, sampleRate);
+        for (let ch = 0; ch < numberOfChannels; ch++) {
+          const src = originalBuffer.getChannelData(ch);
+          const dst = reversed.getChannelData(ch);
+          for (let i = 0; i < length; i++) {
+            dst[i] = src[length - 1 - i];
+          }
+        }
+        return reversed;
+      }
+
+      function bufferToRecord(slotId, entry) {
+        const channels = [];
+        for (let ch = 0; ch < entry.originalBuffer.numberOfChannels; ch++) {
+          channels.push(new Float32Array(entry.originalBuffer.getChannelData(ch)));
+        }
+        return {
+          id: slotId,
+          sampleRate: entry.originalBuffer.sampleRate,
+          numberOfChannels: entry.originalBuffer.numberOfChannels,
+          length: entry.originalBuffer.length,
+          duration: entry.originalBuffer.duration,
+          recordedAt: entry.recordedAt,
+          rawBlobBase64: entry.rawBlobBase64 || '',
+          rawMimeType: entry.rawMimeType || '',
+          sharedId: entry.sharedId || '',
+          channels
+        };
+      }
+
+      function recordToSlotEntry(record) {
+        const ctx = getAudioContext();
+        const originalBuffer = ctx.createBuffer(
+          record.numberOfChannels,
+          record.length,
+          record.sampleRate
+        );
+        for (let ch = 0; ch < record.numberOfChannels; ch++) {
+          const arr = record.channels[ch] instanceof Float32Array
+            ? record.channels[ch]
+            : new Float32Array(record.channels[ch]);
+          originalBuffer.copyToChannel(arr, ch);
+        }
+        const reversedBuffer = createReversedBuffer(ctx, originalBuffer);
+        return {
+          originalBuffer,
+          reversedBuffer,
+          duration: originalBuffer.duration,
+          sampleRate: originalBuffer.sampleRate,
+          recordedAt: record.recordedAt,
+          rawBlobBase64: record.rawBlobBase64 || '',
+          rawMimeType: record.rawMimeType || '',
+          sharedId: record.sharedId || ''
+        };
+      }
+
+      // --- IndexedDB Persistence ---
+      function openDatabase() {
+        return new Promise((resolve) => {
+          try {
+            if (!('indexedDB' in window)) {
+              dbMode = 'In-Memory';
+              resolve(null);
+              return;
+            }
+            const req = indexedDB.open(DB_NAME, DB_VERSION);
+            req.onupgradeneeded = (e) => {
+              const database = e.target.result;
+              if (!database.objectStoreNames.contains(STORE_NAME)) {
+                database.createObjectStore(STORE_NAME, { keyPath: 'id' });
+              }
+            };
+            req.onsuccess = (e) => {
+              db = e.target.result;
+              dbMode = 'IndexedDB';
+              resolve(db);
+            };
+            req.onerror = () => {
+              dbMode = 'In-Memory';
+              resolve(null);
+            };
+          } catch (_) {
+            dbMode = 'In-Memory';
+            resolve(null);
+          }
+        });
+      }
+
+      function saveVoiceToDB(record) {
+        return new Promise((resolve) => {
+          if (!db) {
+            resolve(false);
+            return;
+          }
+          try {
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            const store = tx.objectStore(STORE_NAME);
+            store.put(record);
+            tx.oncomplete = () => resolve(true);
+            tx.onerror = () => resolve(false);
+          } catch (_) {
+            resolve(false);
+          }
+        });
+      }
+
+      function deleteVoiceFromDB(slotId) {
+        return new Promise((resolve) => {
+          if (!db) {
+            resolve(false);
+            return;
+          }
+          try {
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            const store = tx.objectStore(STORE_NAME);
+            store.delete(slotId);
+            tx.oncomplete = () => resolve(true);
+            tx.onerror = () => resolve(false);
+          } catch (_) {
+            resolve(false);
+          }
+        });
+      }
+
+      function loadAllVoicesFromDB() {
+        return new Promise((resolve) => {
+          if (!db) {
+            resolve([]);
+            return;
+          }
+          try {
+            const tx = db.transaction(STORE_NAME, 'readonly');
+            const store = tx.objectStore(STORE_NAME);
+            const req = store.getAll();
+            req.onsuccess = () => resolve(req.result || []);
+            req.onerror = () => resolve([]);
+          } catch (_) {
+            resolve([]);
+          }
+        });
+      }
+
+      // --- Canvas Drawing ---
+      function resizeCanvas() {
+        const rect = waveformCanvas.parentElement.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+        waveformCanvas.width = Math.max(1, Math.floor(rect.width * dpr));
+        waveformCanvas.height = Math.max(1, Math.floor(rect.height * dpr));
+      }
+
+      function drawStaticWaveform(buffer, progress = -1, reversed = false) {
+        resizeCanvas();
+        const ctx = waveformCanvas.getContext('2d');
+        const w = waveformCanvas.width;
+        const h = waveformCanvas.height;
+        ctx.clearRect(0, 0, w, h);
+
+        if (!buffer) return;
+
+        const data = buffer.getChannelData(0);
+        const barCount = Math.min(90, Math.max(30, Math.floor(w / 7)));
+        const step = Math.max(1, Math.floor(data.length / barCount));
+        const barWidth = Math.max(2, (w / barCount) * 0.62);
+        const gap = w / barCount;
+        const midY = h / 2;
+
+        for (let i = 0; i < barCount; i++) {
+          const idx = i * step;
+          let peak = 0;
+          for (let j = 0; j < step && idx + j < data.length; j++) {
+            const val = Math.abs(data[idx + j]);
+            if (val > peak) peak = val;
+          }
+          const barHeight = Math.max(4, peak * (h * 0.84));
+          const x = i * gap + (gap - barWidth) / 2;
+          const normPos = i / barCount;
+
+          let fill = reversed ? '#7c3aed' : '#4f46e5';
+          if (progress >= 0) {
+            fill = normPos <= progress
+              ? (reversed ? '#c4b5fd' : '#a5b4fc')
+              : '#334155';
+          }
+
+          ctx.fillStyle = fill;
+          ctx.beginPath();
+          ctx.roundRect(x, midY - barHeight / 2, barWidth, barHeight, 3);
+          ctx.fill();
+        }
+
+        if (progress >= 0 && progress <= 1) {
+          const px = Math.min(w - 2, Math.max(2, progress * w));
+          ctx.strokeStyle = '#f8fafc';
+          ctx.lineWidth = Math.max(2, (window.devicePixelRatio || 1) * 1.5);
+          ctx.beginPath();
+          ctx.moveTo(px, 4);
+          ctx.lineTo(px, h - 4);
+          ctx.stroke();
+        }
+      }
+
+      function drawLiveWaveform() {
+        if (!isRecording || !analyser) return;
+        resizeCanvas();
+        const ctx = waveformCanvas.getContext('2d');
+        const w = waveformCanvas.width;
+        const h = waveformCanvas.height;
+        ctx.clearRect(0, 0, w, h);
+
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+        analyser.getByteTimeDomainData(dataArray);
+
+        ctx.lineWidth = Math.max(2, (window.devicePixelRatio || 1) * 1.5);
+        ctx.strokeStyle = '#fb7185';
+        ctx.beginPath();
+
+        const sliceWidth = w / bufferLength;
+        let x = 0;
+        for (let i = 0; i < bufferLength; i++) {
+          const v = dataArray[i] / 128.0;
+          const y = (v * h) / 2;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+          x += sliceWidth;
+        }
+        ctx.lineTo(w, h / 2);
+        ctx.stroke();
+
+        const elapsed = (performance.now() - recordStartTime) / 1000;
+        timeDisplay.textContent = formatDuration(elapsed);
+
+        recordAnimId = requestAnimationFrame(drawLiveWaveform);
+      }
+
+      // --- Permissions Helper ---
+      function isUser2Voice1Restricted() {
+        return currentRole === 'user2' && activeSlot === 'slot1';
+      }
+
+      // --- UI Sync ---
+      function updateUI() {
+        const s1 = slots.slot1;
+        const s2 = slots.slot2;
+        const current = slots[activeSlot];
+        const isSlot1 = activeSlot === 'slot1';
+        const restrictedU2V1 = isUser2Voice1Restricted();
+
+        // Database badge
+        dbStatusText.textContent = dbMode === 'IndexedDB' ? 'Database Ready' : 'Session Memory';
+
+        // Toggle dedicated User 2 bar when opened via share link
+        if (lockedFromShareLink) {
+          roleSwitcherBar.classList.add('hidden');
+          sharedSessionBar.classList.remove('hidden');
+        } else {
+          roleSwitcherBar.classList.remove('hidden');
+          sharedSessionBar.classList.add('hidden');
+        }
+
+        // Role switcher styling
+        if (currentRole === 'user1') {
+          roleUser1Btn.className = 'px-3 py-1 rounded-md text-xs font-semibold transition-colors bg-indigo-600 text-white';
+          roleUser2Btn.className = 'px-3 py-1 rounded-md text-xs font-semibold transition-colors text-slate-400 hover:text-slate-200';
+          roleHint.textContent = 'Records Voice 1 & generates share link';
+          headerSubtitle.textContent = 'User 1 records Voice 1 & shares a reversed-only link with User 2';
+        } else {
+          roleUser1Btn.className = 'px-3 py-1 rounded-md text-xs font-semibold transition-colors text-slate-400 hover:text-slate-200';
+          roleUser2Btn.className = 'px-3 py-1 rounded-md text-xs font-semibold transition-colors bg-violet-600 text-white';
+          roleHint.textContent = lockedFromShareLink
+            ? 'Opened via shared link (Voice 1 is reversed-only)'
+            : 'Voice 1 is reversed-only; record freely in Voice 2';
+          headerSubtitle.textContent = 'User 2 hears Voice 1 reversed-only & records their own voice';
+        }
+        roleUser1Btn.disabled = isRecording;
+        roleUser2Btn.disabled = isRecording;
+
+        // Tab labels & styles
+        tabLabel1.textContent = currentRole === 'user2' ? 'Voice 1 (Shared)' : 'Voice 1';
+        tabLabel2.textContent = currentRole === 'user2' ? 'Voice 2 (Yours)' : 'Voice 2';
+
+        tabSlot1.setAttribute('aria-selected', String(isSlot1));
+        tabSlot2.setAttribute('aria-selected', String(!isSlot1));
+
+        tabSlot1.className = `tab-btn relative py-3.5 px-4 text-sm font-semibold flex items-center justify-center gap-2 transition-colors border-b-2 ${
+          isSlot1
+            ? 'border-indigo-500 text-white bg-slate-900/70'
+            : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-900/40'
+        }`;
+        tabSlot2.className = `tab-btn relative py-3.5 px-4 text-sm font-semibold flex items-center justify-center gap-2 transition-colors border-b-2 ${
+          !isSlot1
+            ? 'border-indigo-500 text-white bg-slate-900/70'
+            : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-900/40'
+        }`;
+
+        tabBadge1.textContent = s1 ? `${s1.duration.toFixed(1)}s` : 'Empty';
+        tabBadge1.className = `px-2 py-0.5 text-[11px] rounded-full font-medium ${
+          s1 ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-400'
+        }`;
+
+        tabBadge2.textContent = s2 ? `${s2.duration.toFixed(1)}s` : 'Empty';
+        tabBadge2.className = `px-2 py-0.5 text-[11px] rounded-full font-medium ${
+          s2 ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-400'
+        }`;
+
+        footerSlot1.textContent = s1 ? `Voice 1: ${s1.duration.toFixed(1)}s` : 'Voice 1: Empty';
+        footerSlot2.textContent = s2 ? `Voice 2: ${s2.duration.toFixed(1)}s` : 'Voice 2: Empty';
+
+        // Slot header
+        if (isSlot1) {
+          activeSlotTitle.textContent = currentRole === 'user2' ? 'Voice 1 (Shared by User 1)' : 'Voice Slot 1';
+        } else {
+          activeSlotTitle.textContent = currentRole === 'user2' ? 'Voice 2 (Your Recording)' : 'Voice Slot 2';
+        }
+
+        if (restrictedU2V1) {
+          reverseOnlyBadge.classList.remove('hidden');
+        } else {
+          reverseOnlyBadge.classList.add('hidden');
+        }
+
+        if (isRecording) {
+          activeSlotMeta.textContent = 'Recording from microphone...';
+        } else if (current) {
+          const timeStr = new Date(current.recordedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          activeSlotMeta.textContent = restrictedU2V1
+            ? `Shared by User 1 (${current.duration.toFixed(2)}s) • Reverse playback only`
+            : `Saved (${current.duration.toFixed(2)}s • ${timeStr})`;
+        } else {
+          activeSlotMeta.textContent = restrictedU2V1
+            ? 'Waiting for User 1 to record Voice 1.'
+            : 'No recording saved in this slot yet.';
+        }
+
+        // Record & Clear visibility for User 2 on Voice 1
+        if (restrictedU2V1) {
+          recordSection.classList.add('hidden');
+          clearSlotBtn.classList.add('hidden');
+          emptyWaveformText.innerHTML = 'No shared Voice 1 yet. Switch to <strong class="text-slate-300">User 1</strong> to record or open a share link.';
+        } else {
+          recordSection.classList.remove('hidden');
+          clearSlotBtn.classList.remove('hidden');
+          emptyWaveformText.innerHTML = 'Press <strong class="text-slate-300">Start Recording</strong> below to capture your voice';
+        }
+
+        // Record button state
+        if (isRecording) {
+          recordPulse.classList.remove('hidden');
+          recordIcon.className = 'w-3.5 h-3.5 rounded-sm bg-white';
+          recordBtnText.textContent = 'Stop Recording';
+          recordBtn.classList.remove('bg-rose-600', 'hover:bg-rose-500');
+          recordBtn.classList.add('bg-rose-700', 'hover:bg-rose-600');
+        } else {
+          recordPulse.classList.add('hidden');
+          recordIcon.className = 'w-3.5 h-3.5 rounded-full bg-white';
+          recordBtnText.textContent = current ? 'Re-record Voice' : 'Start Recording';
+          recordBtn.classList.add('bg-rose-600', 'hover:bg-rose-500');
+          recordBtn.classList.remove('bg-rose-700', 'hover:bg-rose-600');
+        }
+
+        // Action buttons & seek bar
+        const hasAudio = Boolean(current) && !isRecording;
+        clearSlotBtn.disabled = !hasAudio || restrictedU2V1;
+        playOriginalBtn.disabled = !hasAudio || restrictedU2V1;
+        playReverseBtn.disabled = !hasAudio;
+        seekBar.disabled = !hasAudio;
+
+        if (restrictedU2V1) {
+          playOriginalBtn.classList.add('hidden');
+          playbackGrid.classList.remove('sm:grid-cols-2');
+          playbackGrid.classList.add('sm:grid-cols-1');
+        } else {
+          playOriginalBtn.classList.remove('hidden');
+          playbackGrid.classList.remove('sm:grid-cols-1');
+          playbackGrid.classList.add('sm:grid-cols-2');
+        }
+
+        tabSlot1.disabled = isRecording;
+        tabSlot2.disabled = isRecording;
+
+        // Playback button labels & transport row
+        if (playbackState === 'playing' && playbackMode === 'original') {
+          playOriginalText.textContent = 'Pause Original';
+        } else if (playbackState === 'paused' && playbackMode === 'original') {
+          playOriginalText.textContent = 'Resume Original';
+        } else {
+          playOriginalText.textContent = 'Play Original';
+        }
+
+        if (playbackState === 'playing' && playbackMode === 'reverse') {
+          playReverseText.textContent = 'Pause Reversed';
+        } else if (playbackState === 'paused' && playbackMode === 'reverse') {
+          playReverseText.textContent = 'Resume Reversed';
+        } else {
+          playReverseText.textContent = restrictedU2V1 ? 'Play Voice 1 (Reversed Only)' : 'Play Reversed';
+        }
+
+        if (playbackState === 'playing' || playbackState === 'paused') {
+          stopPlaybackRow.classList.remove('hidden');
+          if (playbackState === 'paused') {
+            pauseIcon.classList.add('hidden');
+            resumeIcon.classList.remove('hidden');
+            pauseResumeText.textContent = 'Resume';
+          } else {
+            pauseIcon.classList.remove('hidden');
+            resumeIcon.classList.add('hidden');
+            pauseResumeText.textContent = 'Pause';
+          }
+        } else {
+          stopPlaybackRow.classList.add('hidden');
+        }
+
+        // Shareable link section (User 1 when Voice 1 exists)
+        if (currentRole === 'user1' && s1 && !isRecording) {
+          const link = buildShareableLink(s1);
+          shareLinkInput.value = link;
+          const len = link.length;
+          shareSizeBadge.textContent = `${len.toLocaleString()} chars`;
+          shareSizeBadge.className = len <= 1000
+            ? 'px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/20 text-emerald-300'
+            : 'px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-500/20 text-amber-300';
+          shareSection.classList.remove('hidden');
+        } else {
+          shareSection.classList.add('hidden');
+        }
+
+        // Waveform & Play Bar
+        if (isRecording) {
+          emptyWaveformOverlay.classList.add('hidden');
+          visualizerLabel.textContent = 'Live Microphone Input';
+          currentTimeLabel.textContent = '00:00.0';
+          totalTimeLabel.textContent = '00:00.0';
+          seekBar.value = 0;
+        } else if (current) {
+          emptyWaveformOverlay.classList.add('hidden');
+          const activeMode = restrictedU2V1 ? 'reverse' : (playbackMode || 'original');
+          const isRev = activeMode === 'reverse';
+          visualizerLabel.textContent = isRev ? 'Reversed Waveform' : 'Original Waveform';
+          totalTimeLabel.textContent = formatDuration(current.duration);
+
+          if (playbackState !== 'playing') {
+            const clampedOffset = Math.min(Math.max(0, playbackOffset), current.duration);
+            const progress = current.duration > 0 ? clampedOffset / current.duration : 0;
+            currentTimeLabel.textContent = formatDuration(clampedOffset);
+            timeDisplay.textContent = `${formatDuration(clampedOffset)} / ${formatDuration(current.duration)}`;
+            if (!isSeeking) {
+              seekBar.value = Math.round(progress * 1000);
+            }
+            const buf = isRev ? current.reversedBuffer : current.originalBuffer;
+            drawStaticWaveform(buf, clampedOffset > 0 ? progress : -1, isRev);
+          }
+        } else {
+          emptyWaveformOverlay.classList.remove('hidden');
+          visualizerLabel.textContent = 'Waveform Preview';
+          timeDisplay.textContent = '00:00.0';
+          currentTimeLabel.textContent = '00:00.0';
+          totalTimeLabel.textContent = '00:00.0';
+          seekBar.value = 0;
+          resizeCanvas();
+          const ctx = waveformCanvas.getContext('2d');
+          ctx.clearRect(0, 0, waveformCanvas.width, waveformCanvas.height);
+        }
+      }
+
+      // --- Playback ---
+      function clearActiveSource() {
+        if (playbackAnimId) {
+          cancelAnimationFrame(playbackAnimId);
+          playbackAnimId = null;
+        }
+        if (activeSource) {
+          try {
+            activeSource.onended = null;
+            activeSource.stop();
+          } catch (_) {}
+          activeSource = null;
+        }
+      }
+
+      function stopPlayback() {
+        clearActiveSource();
+        playbackState = 'idle';
+        playbackMode = null;
+        playbackOffset = 0;
+        updateUI();
+      }
+
+      function pausePlayback() {
+        if (playbackState !== 'playing' || !audioCtx) return;
+        const elapsed = audioCtx.currentTime - playbackStartTime;
+        playbackOffset = Math.min(playbackDuration, Math.max(0, playbackOffset + elapsed));
+        clearActiveSource();
+        playbackState = 'paused';
+        updateUI();
+      }
+
+      function resumePlayback() {
+        if (playbackState !== 'paused' || !playbackMode) return;
+        startPlayback(playbackMode, playbackOffset);
+      }
+
+      function startPlayback(mode, startAt = null) {
+        const entry = slots[activeSlot];
+        if (!entry || isRecording) return;
+        if (isUser2Voice1Restricted() && mode !== 'reverse') {
+          mode = 'reverse';
+        }
+
+        const offset = startAt !== null
+          ? Math.min(Math.max(0, startAt), Math.max(0, entry.duration - 0.01))
+          : (playbackMode === mode || playbackState === 'idle' ? Math.min(Math.max(0, playbackOffset), Math.max(0, entry.duration - 0.01)) : 0);
+
+        clearActiveSource();
+        hideBanner();
+
+        const ctx = getAudioContext();
+        const buffer = mode === 'reverse' ? entry.reversedBuffer : entry.originalBuffer;
+
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(ctx.destination);
+
+        playbackMode = mode;
+        playbackState = 'playing';
+        activeSource = source;
+        playbackOffset = offset;
+        playbackStartTime = ctx.currentTime;
+        playbackDuration = buffer.duration;
+
+        source.onended = () => {
+          if (activeSource === source) {
+            stopPlayback();
+          }
+        };
+
+        source.start(0, offset);
+        updateUI();
+
+        function animatePlayback() {
+          if (playbackState !== 'playing' || activeSource !== source) return;
+          const currentPos = Math.min(playbackDuration, playbackOffset + (ctx.currentTime - playbackStartTime));
+          const progress = Math.min(1, currentPos / Math.max(0.001, playbackDuration));
+          timeDisplay.textContent = `${formatDuration(currentPos)} / ${formatDuration(playbackDuration)}`;
+          currentTimeLabel.textContent = formatDuration(currentPos);
+          if (!isSeeking) {
+            seekBar.value = Math.round(progress * 1000);
+          }
+          drawStaticWaveform(buffer, progress, mode === 'reverse');
+          if (progress < 1) {
+            playbackAnimId = requestAnimationFrame(animatePlayback);
+          }
+        }
+        playbackAnimId = requestAnimationFrame(animatePlayback);
+      }
+
+      function seekToFraction(fraction) {
+        const entry = slots[activeSlot];
+        if (!entry || isRecording) return;
+        const clamped = Math.min(1, Math.max(0, fraction));
+        const targetTime = clamped * entry.duration;
+        playbackOffset = targetTime;
+
+        const defaultMode = isUser2Voice1Restricted() ? 'reverse' : (playbackMode || 'original');
+        if (playbackState === 'playing') {
+          startPlayback(defaultMode, targetTime);
+        } else {
+          updateUI();
+        }
+      }
+
+      // --- Recording ---
+      async function startRecording() {
+        if (isUser2Voice1Restricted()) return;
+        stopPlayback();
+        hideBanner();
+
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          showBanner('Microphone recording is not supported in this browser.', 'error');
+          return;
+        }
+
+        try {
+          mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (err) {
+          showBanner('Microphone permission was denied or no microphone was found. Please allow microphone access and try again.', 'error');
+          return;
+        }
+
+        const ctx = getAudioContext();
+        const sourceNode = ctx.createMediaStreamSource(mediaStream);
+        analyser = ctx.createAnalyser();
+        analyser.fftSize = 1024;
+        sourceNode.connect(analyser);
+
+        const mimeCandidates = [
+          'audio/webm;codecs=opus',
+          'audio/webm',
+          'audio/mp4',
+          'audio/ogg;codecs=opus'
+        ];
+        const supportedMime = mimeCandidates.find((m) => window.MediaRecorder && MediaRecorder.isTypeSupported(m));
+        try {
+          mediaRecorder = supportedMime
+            ? new MediaRecorder(mediaStream, { mimeType: supportedMime, audioBitsPerSecond: 6000 })
+            : new MediaRecorder(mediaStream, { audioBitsPerSecond: 6000 });
+        } catch (_) {
+          mediaRecorder = supportedMime
+            ? new MediaRecorder(mediaStream, { mimeType: supportedMime })
+            : new MediaRecorder(mediaStream);
+        }
+
+        recordedChunks = [];
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) {
+            recordedChunks.push(e.data);
+          }
+        };
+
+        mediaRecorder.onstop = async () => {
+          if (recordAnimId) {
+            cancelAnimationFrame(recordAnimId);
+            recordAnimId = null;
+          }
+          if (mediaStream) {
+            mediaStream.getTracks().forEach((t) => t.stop());
+            mediaStream = null;
+          }
+          analyser = null;
+          isRecording = false;
+
+          const mimeType = mediaRecorder.mimeType || 'audio/webm';
+          const blob = new Blob(recordedChunks, { type: mimeType });
+          if (blob.size === 0) {
+            showBanner('No audio was captured. Please try recording again.', 'error');
+            updateUI();
+            return;
+          }
+
+          try {
+            const arrayBuffer = await blob.arrayBuffer();
+            const rawBlobBase64 = uint8ToBase64Url(new Uint8Array(arrayBuffer));
+            const decoded = await getAudioContext().decodeAudioData(arrayBuffer.slice(0));
+            const reversed = createReversedBuffer(getAudioContext(), decoded);
+            let sharedId = '';
+            if (activeSlot === 'slot1' && currentRole === 'user1') {
+              sharedId = (await uploadToNetlifyBlobs(blob, mimeType)) || '';
+            }
+            const entry = {
+              originalBuffer: decoded,
+              reversedBuffer: reversed,
+              duration: decoded.duration,
+              sampleRate: decoded.sampleRate,
+              recordedAt: Date.now(),
+              rawBlobBase64,
+              rawMimeType: mimeType,
+              sharedId
+            };
+            slots[activeSlot] = entry;
+            await saveVoiceToDB(bufferToRecord(activeSlot, entry));
+            const slotName = activeSlot === 'slot1' ? 'Voice 1' : 'Voice 2';
+            const extra = activeSlot === 'slot1' && currentRole === 'user1' ? ' Shareable link generated below!' : '';
+            showBanner(`Saved to ${slotName} (${decoded.duration.toFixed(1)}s).${extra}`, 'success');
+          } catch (decodeErr) {
+            showBanner('Could not decode the recorded audio. Please try another short recording.', 'error');
+          }
+          updateUI();
+        };
+
+        isRecording = true;
+        recordStartTime = performance.now();
+        mediaRecorder.start();
+        updateUI();
+        recordAnimId = requestAnimationFrame(drawLiveWaveform);
+      }
+
+      function stopRecording() {
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+          mediaRecorder.stop();
+        }
+      }
+
+      // --- Shareable Link Loader ---
+      async function loadFromQueryId() {
+        const params = new URLSearchParams(window.location.search);
+        const id = (params.get('id') || '').trim();
+        if (!id) return false;
+        try {
+          const res = await fetch(`/api/voice?id=${encodeURIComponent(id)}`);
+          if (!res.ok) {
+            showBanner('Shared voice link was not found or has expired.', 'error');
+            return false;
+          }
+          const arrayBuffer = await res.arrayBuffer();
+          const ctx = getAudioContext();
+          const decoded = await ctx.decodeAudioData(arrayBuffer.slice(0));
+          const reversed = createReversedBuffer(ctx, decoded);
+
+          slots.slot1 = {
+            originalBuffer: decoded,
+            reversedBuffer: reversed,
+            duration: decoded.duration,
+            sampleRate: decoded.sampleRate,
+            recordedAt: Date.now(),
+            rawBlobBase64: '',
+            rawMimeType: res.headers.get('content-type') || 'audio/webm',
+            sharedId: id
+          };
+          lockedFromShareLink = true;
+          currentRole = 'user2';
+          activeSlot = 'slot1';
+          showBanner('Loaded shared Voice 1 in User 2 mode (reverse playback only).', 'info');
+          return true;
+        } catch (_) {
+          showBanner('Could not load audio from the shared link.', 'error');
+          return false;
+        }
+      }
+
+      async function loadFromHash() {
+        const hash = window.location.hash || '';
+        const match = hash.match(/#v1=([^~]+)~([A-Za-z0-9\-_]+)/);
+        if (!match) return false;
+
+        try {
+          const mimeType = decodeURIComponent(match[1]);
+          const bytes = base64UrlToUint8(match[2]);
+          const ctx = getAudioContext();
+          const decoded = await ctx.decodeAudioData(bytes.buffer.slice(0));
+          const reversed = createReversedBuffer(ctx, decoded);
+
+          slots.slot1 = {
+            originalBuffer: decoded,
+            reversedBuffer: reversed,
+            duration: decoded.duration,
+            sampleRate: decoded.sampleRate,
+            recordedAt: Date.now(),
+            rawBlobBase64: match[2],
+            rawMimeType: mimeType
+          };
+          lockedFromShareLink = true;
+          currentRole = 'user2';
+          activeSlot = 'slot1';
+          showBanner('Loaded shared Voice 1 in User 2 mode (reverse playback only).', 'info');
+          return true;
+        } catch (_) {
+          showBanner('Could not load audio from the shareable link.', 'error');
+          return false;
+        }
+      }
+
+      // --- Event Listeners ---
+      roleUser1Btn.addEventListener('click', () => {
+        if (isRecording || currentRole === 'user1') return;
+        stopPlayback();
+        hideBanner();
+        currentRole = 'user1';
+        lockedFromShareLink = false;
+        updateUI();
+      });
+
+      roleUser2Btn.addEventListener('click', () => {
+        if (isRecording || currentRole === 'user2') return;
+        stopPlayback();
+        hideBanner();
+        currentRole = 'user2';
+        updateUI();
+      });
+
+      tabSlot1.addEventListener('click', () => {
+        if (isRecording || activeSlot === 'slot1') return;
+        stopPlayback();
+        hideBanner();
+        activeSlot = 'slot1';
+        updateUI();
+      });
+
+      tabSlot2.addEventListener('click', () => {
+        if (isRecording || activeSlot === 'slot2') return;
+        stopPlayback();
+        hideBanner();
+        activeSlot = 'slot2';
+        updateUI();
+      });
+
+      recordBtn.addEventListener('click', () => {
+        if (isRecording) {
+          stopRecording();
+        } else {
+          startRecording();
+        }
+      });
+
+      playOriginalBtn.addEventListener('click', () => {
+        if (isUser2Voice1Restricted()) return;
+        if (playbackState === 'playing' && playbackMode === 'original') {
+          pausePlayback();
+        } else if (playbackState === 'paused' && playbackMode === 'original') {
+          resumePlayback();
+        } else {
+          const startAt = playbackMode && playbackMode !== 'original' ? 0 : playbackOffset;
+          startPlayback('original', startAt);
+        }
+      });
+
+      playReverseBtn.addEventListener('click', () => {
+        if (playbackState === 'playing' && playbackMode === 'reverse') {
+          pausePlayback();
+        } else if (playbackState === 'paused' && playbackMode === 'reverse') {
+          resumePlayback();
+        } else {
+          const startAt = playbackMode && playbackMode !== 'reverse' ? 0 : playbackOffset;
+          startPlayback('reverse', startAt);
+        }
+      });
+
+      pauseResumeBtn.addEventListener('click', () => {
+        if (playbackState === 'playing') {
+          pausePlayback();
+        } else if (playbackState === 'paused') {
+          resumePlayback();
+        }
+      });
+
+      stopPlaybackBtn.addEventListener('click', () => stopPlayback());
+
+      seekBar.addEventListener('input', () => {
+        const entry = slots[activeSlot];
+        if (!entry || isRecording) return;
+        isSeeking = true;
+        const fraction = Number(seekBar.value) / 1000;
+        const targetTime = fraction * entry.duration;
+        currentTimeLabel.textContent = formatDuration(targetTime);
+        timeDisplay.textContent = `${formatDuration(targetTime)} / ${formatDuration(entry.duration)}`;
+        const isRev = isUser2Voice1Restricted() || playbackMode === 'reverse';
+        const buf = isRev ? entry.reversedBuffer : entry.originalBuffer;
+        drawStaticWaveform(buf, fraction, isRev);
+      });
+
+      seekBar.addEventListener('change', () => {
+        isSeeking = false;
+        const fraction = Number(seekBar.value) / 1000;
+        seekToFraction(fraction);
+      });
+
+      waveformCanvas.addEventListener('click', (e) => {
+        const entry = slots[activeSlot];
+        if (!entry || isRecording) return;
+        const rect = waveformCanvas.getBoundingClientRect();
+        if (rect.width <= 0) return;
+        const fraction = (e.clientX - rect.left) / rect.width;
+        seekToFraction(fraction);
+      });
+
+      clearSlotBtn.addEventListener('click', async () => {
+        if (isRecording || isUser2Voice1Restricted()) return;
+        stopPlayback();
+        slots[activeSlot] = null;
+        await deleteVoiceFromDB(activeSlot);
+        showBanner(`Cleared ${activeSlot === 'slot1' ? 'Voice 1' : 'Voice 2'} from the database.`, 'info');
+        updateUI();
+      });
+
+      copyShareBtn.addEventListener('click', async () => {
+        const link = shareLinkInput.value;
+        if (!link) return;
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(link);
+          } else {
+            shareLinkInput.select();
+            document.execCommand('copy');
+          }
+          copyShareText.textContent = 'Copied!';
+          setTimeout(() => {
+            copyShareText.textContent = 'Copy Link';
+          }, 1800);
+        } catch (_) {
+          shareLinkInput.select();
+          document.execCommand('copy');
+          copyShareText.textContent = 'Copied!';
+          setTimeout(() => {
+            copyShareText.textContent = 'Copy Link';
+          }, 1800);
+        }
+      });
+
+      openAsUser2Btn.addEventListener('click', () => {
+        if (!slots.slot1 || isRecording) return;
+        stopPlayback();
+        currentRole = 'user2';
+        activeSlot = 'slot1';
+        lockedFromShareLink = false;
+        showBanner('Switched to User 2 view: Voice 1 is locked to reverse playback only.', 'info');
+        updateUI();
+      });
+
+      createOwnBtn.addEventListener('click', () => {
+        if (isRecording) return;
+        stopPlayback();
+        hideBanner();
+        lockedFromShareLink = false;
+        currentRole = 'user1';
+        activeSlot = 'slot1';
+        try {
+          const cleanUrl = window.location.pathname;
+          window.history.replaceState({}, '', cleanUrl);
+        } catch (_) {}
+        updateUI();
+      });
+
+      window.addEventListener('hashchange', async () => {
+        const loaded = await loadFromHash();
+        if (loaded) updateUI();
+      });
+
+      window.addEventListener('resize', () => {
+        if (!isRecording && !playbackMode) {
+          const current = slots[activeSlot];
+          if (current) {
+            const isRev = isUser2Voice1Restricted();
+            drawStaticWaveform(isRev ? current.reversedBuffer : current.originalBuffer, -1, isRev);
+          } else {
+            resizeCanvas();
+          }
+        }
+      });
+
+      // --- Init ---
+      async function init() {
+        await openDatabase();
+        const savedRecords = await loadAllVoicesFromDB();
+        for (const rec of savedRecords) {
+          if (rec && (rec.id === 'slot1' || rec.id === 'slot2')) {
+            try {
+              slots[rec.id] = recordToSlotEntry(rec);
+            } catch (_) {}
+          }
+        }
+        const loadedQuery = await loadFromQueryId();
+        if (!loadedQuery) await loadFromHash();
+        updateUI();
+      }
+
+      init();
+    })();
+  </script>
+</body>
+</html>
